@@ -14,3 +14,13 @@ if(filePicker){
  document.querySelector('#import-csv').addEventListener('click',async event=>{event.target.disabled=true;try{const response=await fetch('/api/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv_text:editor.value})});const data=await response.json();if(!response.ok)throw Error(data.detail);location.href=location.pathname+'?run_id='+data.manifest.run_id;}catch(e){editor.setCustomValidity(e.message);editor.reportValidity();}finally{event.target.disabled=false;}});
  editor.addEventListener('input',()=>editor.setCustomValidity(''));
 }
+document.querySelectorAll('button.publish').forEach(button=>button.addEventListener('click',async event=>{
+  const target=event.currentTarget;target.disabled=true;feedback.textContent='封存中…';
+  try{
+    const body={};if(target.dataset.trip)body.trip_no=target.dataset.trip;
+    const result=await request('/api/runs/'+target.dataset.run+'/publish',body);
+    const lines=result.published||[];
+    feedback.textContent=lines.map(line=>`${line.trip_no} 版本 ${line.version}${line.idempotent?'（沿用原发布）':''}`).join(' · ');
+    setTimeout(()=>location.reload(),600);
+  }catch(error){feedback.textContent=error.message;}finally{target.disabled=false;}
+}));

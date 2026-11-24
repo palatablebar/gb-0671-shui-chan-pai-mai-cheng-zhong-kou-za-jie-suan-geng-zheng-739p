@@ -1,0 +1,82 @@
+{% extends 'base.html' %}{% block content %}
+<div class="grid">
+  <section class="panel primary-panel">
+    <div class="panel__head"><h2>承运结算</h2><span>{{ state.freight.trips|length }} 车次 · {{ view.rows|length }} 票</span></div>
+    <div class="scroll"><table class="ledger"><thead><tr><th>车次</th><th>承运商</th><th>司机</th><th>承运单 CNY</th><th>分摊合计 CNY</th><th>未分摊 CNY</th><th>已结票</th><th>待定票</th><th>状态</th><th>已发布</th><th>操作</th></tr></thead><tbody>
+      {% for trip in state.freight.trips %}
+      <tr>
+        <td class="num">{{ trip.trip_no }}</td><td>{{ trip.carrier }}</td><td>{{ trip.driver }}</td>
+        <td class="num">{{ trip.waybill_amount }}</td><td class="num">{{ trip.allocated }}</td><td class="num">{{ trip.unallocated }}</td>
+        <td class="num">{{ trip.settled_count }}</td><td class="num">{{ trip.pending_count }}</td>
+        <td>{{ trip.status }}</td><td class="num">{{ trip.published_version or '—' }}</td>
+        <td><button class="btn publish" data-run="{{ state.manifest.run_id }}" data-trip="{{ trip.trip_no }}" {% if not trip.sealable %}disabled title="{{ trip.errors|map(attribute='detail')|join('；') }}"{% endif %}>封存</button></td>
+      </tr>
+      {% if trip.errors %}<tr><td colspan="11" class="cell-note">阻断：{% for error in trip.errors %}{{ error.code }} {{ error.detail }}{% if not loop.last %}；{% endif %}{% endfor %}</td></tr>{% endif %}
+      {% endfor %}
+    </tbody></table></div>
+    <div class="panel__bar">
+      <label>样例 <select id="dataset"><option value="dirty" {% if state.source=='dirty' %}selected{% endif %}>现场脏批</option><option value="clean" {% if state.source=='clean' %}selected{% endif %}>核验清批</option><option value="legacy" {% if state.source=='legacy' %}selected{% endif %}>旧编码批</option></select></label>
+      <label>票号 <input id="filter" placeholder="筛选票号"></label>
+      <button class="btn primary publish" data-run="{{ state.manifest.run_id }}" data-trip="" {% if not state.freight.sealable %}disabled{% endif %}>封存全部可结车次</button>
+    </div>
+  </section>
+  <div class="stack">
+    <div class="panel">
+      <div class="panel__head"><h2>分摊口径</h2><span>每票采用计价重</span></div>
+      <div class="panel__bar cell-note">已结票取生效版计价重；待定票取暂定版或车次申报重量；无任何重量依据的票不入账，车费不挤给其余票。分摊以分为单位，最大余数法保证合计等于承运单。</div>
+    </div>
+    <section class="panel">
+      <div class="panel__head"><h2>票号对不上 / 未入账</h2><span>{{ state.freight.unassigned|length }} 票</span></div>
+      {% if state.freight.unassigned %}
+      <div class="scroll"><table class="ledger"><thead><tr><th>票号</th><th>状态</th><th>原因码</th><th>说明</th></tr></thead><tbody>
+      {% for row in state.freight.unassigned %}<tr><td class="num">{{ row.ticket }}</td><td>{{ row.status }}</td><td>{{ row.code }}</td><td>{{ row.detail }}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% else %}<div class="panel__bar cell-note">本批生效票均已对应车次清单。</div>{% endif %}
+    </section>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel__head"><h2>逐票承运费</h2><span>合计 {{ state.freight.rows|length }} 票</span></div>
+  <div class="scroll"><table class="ledger"><thead><tr><th>车次</th><th>票号</th><th>版本</th><th>计价重来源</th><th>计价重 kg</th><th>状态</th><th>入账</th><th>承运费 CNY</th><th>应付 CNY</th><th>已付 CNY</th><th>待付 CNY</th><th>说明</th></tr></thead><tbody>
+  {% for row in state.freight.rows %}
+    <tr>
+      <td class="num">{{ row.trip_no }}</td><td class="num">{{ row.ticket }}</td><td class="num">{{ row.version }}</td>
+      <td>{{ row.weight_source }}</td><td class="num">{{ row.billable_kg }}</td><td>{{ row.status }}</td><td>{{ row.book }}</td>
+      <td class="num">{{ row.freight }}</td><td class="num">{{ row.amount }}</td><td class="num">{{ row.paid }}</td><td class="num">{{ row.due }}</td><td>{{ row.reason }}</td>
+    </tr>
+  {% else %}<tr><td colspan="12">本批没有承运单车次。</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="panel">
+  <div class="panel__head"><h2>已发布 vs 待发布（后补更正补退）</h2><span>{{ state.freight.adjustments|length }} 次调整</span></div>
+  {% set changed = state.freight.trips|selectattr('published')|list %}
+  {% if changed %}
+  <div class="scroll"><table class="ledger"><thead><tr><th>车次</th><th>票号</th><th>原计价重</th><th>新计价重</th><th>计价重来源</th><th>原状态</th><th>新状态</th><th>原承运费</th><th>新承运费</th><th>补退承运费</th><th>货款差额</th><th>合计补退</th></tr></thead><tbody>
+  {% for trip in changed %}{% for line in trip.preview %}
+    <tr>
+      <td class="num">{{ trip.trip_no }}</td><td class="num">{{ line.ticket }}</td>
+      <td class="num">{{ line.weight_before }}</td><td class="num">{{ line.weight_after }}</td><td>{{ line.weight_source }}</td>
+      <td>{{ line.status_before }}</td><td>{{ line.status_after }}</td>
+      <td class="num">{{ line.freight_before }}</td><td class="num">{{ line.freight_after }}</td>
+      <td class="num">{{ line.freight_delta }}</td><td class="num">{{ line.amount_delta }}</td><td class="num">{{ line.net_delta }}</td>
+    </tr>
+  {% endfor %}{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="panel__bar cell-note">尚无已发布车次。首次封存成功后，后补复秤或扣杂更正会在此列出逐票补退。</div>{% endif %}
+  {% if state.freight.adjustments %}
+  <div class="scroll"><table class="ledger"><thead><tr><th>车次</th><th>基于版本</th><th>新版本</th><th>批次</th><th>时间</th></tr></thead><tbody>
+  {% for record in state.freight.adjustments %}<tr><td class="num">{{ record.trip_no }}</td><td class="num">{{ record.base_version }}</td><td class="num">{{ record.new_version }}</td><td class="num">{{ record.run_id }}</td><td>{{ record.created_at }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+</section>
+
+<section class="panel log-panel">
+  <div class="panel__head"><h2>采集日志</h2><span id="log-state">滚动中</span></div>
+  <div id="log-tail" class="log-tail">
+    {% for trip in state.freight.trips %}<div><time>{{ trip.departure_at[-14:-6] if trip.departure_at else '08:00:00' }}</time><span class="lamp {% if trip.sealable %}ok{% else %}warn{% endif %}"></span> {{ trip.trip_no }}　承运单 {{ trip.waybill_amount }}　{{ trip.status }}</div>{% endfor %}
+    {% for row in state.freight.unassigned %}<div><time>08:00:00</time><span class="lamp warn"></span> WARN　{{ row.ticket }}　{{ row.code }}　{{ row.detail }}</div>{% endfor %}
+  </div>
+</section>
+{% endblock %}

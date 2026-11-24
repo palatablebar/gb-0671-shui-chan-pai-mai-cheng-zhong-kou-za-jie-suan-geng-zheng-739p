@@ -5,10 +5,36 @@
     "pairing",
     "auction",
     "correction",
+    "freight",
     "reconcile",
     "archive"
   ],
   "market": "东港水产",
   "currency": "CNY",
-  "weight_unit": "kg"
+  "weight_unit": "kg",
+  "trips": [
+    {
+      "trip_no": "T-20261117-01",
+      "carrier": "顺达冷链",
+      "driver": "王海",
+      "departure_at": "2026-11-17T06:30:00+08:00",
+      "waybill_amount": "680.00",
+      "manifest": [
+        "00001", "00002", "00003", "00004", "00005",
+        "00006", "00007", "00008", "00009", "00010"
+      ]
+    },
+    {
+      "trip_no": "T-20261117-02",
+      "carrier": "顺达冷链",
+      "driver": "李强",
+      "departure_at": "2026-11-17T07:10:00+08:00",
+      "waybill_amount": "760.00",
+      "manifest": [
+        "00011", "00012", "00013", "00014", "00015",
+        "00016", "00017", "00018", "00019", "00020",
+        {"ticket": "00905", "declared_weight": "80", "note": "后补复秤，结算未闭合"}
+      ]
+    }
+  ]
 }
